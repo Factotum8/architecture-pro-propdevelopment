@@ -1,0 +1,45 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequireReadOnlyRootFS
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireReadOnlyRootFS
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequireReadOnlyRootFS
+
+        default is_true = false
+        is_true { input == true }
+
+        containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+        containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+        containers[c] {
+          c := input.review.object.spec.ephemeralContainers[_]
+        }
+
+        violation[msg] {
+          input.review.kind.kind == "Pod"
+          c := containers[_]
+          not is_true(c.securityContext.readOnlyRootFilesystem)
+          msg := sprintf("container must set securityContext.readOnlyRootFilesystem: true (container: %v)", [c.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireReadOnlyRootFS
+metadata:
+  name: require-readonly-rootfs
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces: ["kube-system","gatekeeper-system"]
+    # namespaces: ["audit-zone"]

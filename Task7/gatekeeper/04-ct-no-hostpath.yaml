@@ -1,0 +1,36 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8snoHostPath
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sNoHostPath
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8snoHostPath
+
+        volumes[v] {
+          v := input.review.object.spec.volumes[_]
+        }
+
+        violation[msg] {
+          input.review.kind.kind == "Pod"
+          v := volumes[_]
+          v.hostPath.path
+          msg := sprintf("hostPath volumes are forbidden (volume: %v)", [v.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sNoHostPath
+metadata:
+  name: forbid-hostpath
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces: ["kube-system","gatekeeper-system"]
+    # namespaces: ["audit-zone"]
