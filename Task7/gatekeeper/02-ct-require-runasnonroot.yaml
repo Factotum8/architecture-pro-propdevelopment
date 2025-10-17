@@ -1,0 +1,67 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequireRunAsNonRoot
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireRunAsNonRoot
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequireRunAsNonRoot
+
+        default is_true = false
+        is_true { input == true }
+
+        # Подовый контекст
+        pod_run_as_non_root := input.review.object.spec.securityContext.runAsNonRoot
+        pod_run_as_user := input.review.object.spec.securityContext.runAsUser
+
+        containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+        containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+        containers[c] {
+          c := input.review.object.spec.ephemeralContainers[_]
+        }
+
+        # Контейнер должен явно быть non-root И не иметь UID 0;
+        # если свойство runAsNonRoot не задано на контейнере, допускаем наследование от PodSecurityContext.
+        violation[msg] {
+          input.review.kind.kind == "Pod"
+          c := containers[_]
+          not is_true(c.securityContext.runAsNonRoot)    # нет true на контейнере …
+          not is_true(pod_run_as_non_root)               # … и нет true на уровне pod
+          msg := sprintf("container must set runAsNonRoot: true (container: %v)", [c.name])
+        }
+
+        violation[msg] {
+          input.review.kind.kind == "Pod"
+          c := containers[_]
+          # явный root UID на контейнере
+          c.securityContext.runAsUser == 0
+          msg := sprintf("container runAsUser must not be 0 (container: %v)", [c.name])
+        }
+
+        violation[msg] {
+          input.review.kind.kind == "Pod"
+          # root UID на уровне pod
+          pod_run_as_user == 0
+          msg := "pod securityContext.runAsUser must not be 0"
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireRunAsNonRoot
+metadata:
+  name: require-runasnonroot
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces: ["kube-system","gatekeeper-system"]
+    # namespaces: ["audit-zone"]

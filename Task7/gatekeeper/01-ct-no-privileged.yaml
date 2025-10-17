@@ -1,0 +1,43 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8snoPrivileged
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sNoPrivileged
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8snoPrivileged
+
+        containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+        containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+        containers[c] {
+          c := input.review.object.spec.ephemeralContainers[_]
+        }
+
+        violation[msg] {
+          input.review.kind.kind == "Pod"
+          c := containers[_]
+          c.securityContext.privileged == true
+          msg := sprintf("privileged container is forbidden (container: %v)", [c.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sNoPrivileged
+metadata:
+  name: forbid-privileged
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces: ["kube-system","gatekeeper-system"]
+    # Для применения только к audit-zone раскомментируйте:
+    # namespaces: ["audit-zone"]

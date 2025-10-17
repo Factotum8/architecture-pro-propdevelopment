@@ -1,0 +1,48 @@
+# Роль только чтение (без секретов)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: view-no-secrets
+rules:
+  - apiGroups: ["", "apps"]
+    resources: ["pods","services","deployments"]
+    verbs: ["get","list","watch"]
+
+---
+# Роль администрирования конфигурации
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-config-admin
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments","statefulsets","daemonsets"]
+    verbs: ["*"]
+
+---
+# Foo = только чтение
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: foo-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view-no-secrets
+subjects:
+  - kind: User
+    name: foo
+
+---
+# Bar = админ конфигурации
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bar-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-config-admin
+subjects:
+  - kind: User
+    name: bar

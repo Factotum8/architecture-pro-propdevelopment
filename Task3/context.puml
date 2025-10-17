@@ -1,0 +1,71 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+title C4 Context
+
+
+' Акторы
+Person(owner, "Собственник", "Пользуется текущим мобильным приложением для услуг и доступа")
+Person(client, "Клиент")
+
+' Внутренняя система PropDevelopment (группируем домены)
+System_Boundary(propdev, "PropDevelopment") {
+
+  ' Домен: Группа сервисов для продаж
+  System_Boundary(sales, "Домен: Сервисы для продаж") {
+    System(sales_storefront, "Витрина продаж", "Web/App", "Показ объектов и предложения")
+    System(client_tour, "client-tour-app", "App + DB", "Онлайн-тур по объектам")
+    System(client_mart, "client-mart-app", "App + DB", "Онлайн-сделка")
+    System(client_crm, "client-crm-app", "App + DB", "Управление клиентскими данными (продажи)")
+    System(client_estate, "client-mart-estate-app", "App + DB", "Данные об объектах недвижимости (продажи)")
+  }
+
+  ' Домен: ЖКУ (услуги собственникам)
+  System_Boundary(utilities, "Домен: ЖКУ (услуги собственникам)") {
+    System(utilities_storefront, "Витрина ЖКУ", "Web/App", "Публичная витрина услуг ЖКУ")
+    System(tenant_core, "tenant-core-app", "Сервис + БД", "Предоставление услуг собственникам/жильцам")
+    System(tenant_crm, "tenant-crm", "CRM + БД", "Данные о собственниках/жильцах (ЖКУ)")
+  }
+
+  ' Домен: Финансы
+  System_Boundary(finance, "Домен: Финансы") {
+    System(accounting, "accountant-service-1", "Сервис + БД", "Финансовый учёт")
+    System(directory, "Directory Service", "Служба каталогов", "Идентификация/группы/права")
+  }
+
+  ' Клиентские приложения PropDevelopment
+  System(mobile_app, "Мобильное приложение собственника", "iOS/Android", "Единая точка доступа к услугам, в т.ч. 'Умный дом'")
+}
+
+' Внешние партнёрские системы "Умный дом"
+System_Boundary(partner, "Партнёр: Сервисы «Умный дом»") {
+  System_Ext(smart_intercom, "Интеллектуальный домофон", "Партнёрский сервис", "Видео/аудио, биометрия (распознавание лиц), удалённое открытие двери")
+  System_Ext(smart_gate, "Интеллектуальный шлагбаум", "Партнёрский сервис", "Управление шлагбаумом, распознавание госномеров")
+}
+
+' Основные взаимоотношения (контекст)
+Rel(owner, mobile_app, "Использует", "Mobile")
+
+' Мобильное приложение ↔ ЖКУ и партнёр
+Rel(mobile_app, tenant_core, "Запросы услуг, профиль, заявки", "HTTPS")
+Rel(mobile_app, smart_intercom, "Удалённый доступ/просмотр", "HTTPS (через интеграционный слой)")
+Rel(mobile_app, smart_gate, "Удалённый доступ/управление", "HTTPS (через интеграционный слой)")
+
+' Интеграции между доменами и партнёром (упрощённо)
+Rel(tenant_core, tenant_crm, "Данные собственников/жильцов", "Internal API")
+Rel(tenant_core, directory, "Аутентификация/роли", "LDAP/OIDC")
+Rel(tenant_core, smart_intercom, "Авторизация доступа (списки разрешений), события", "HTTPS/Webhooks")
+Rel(tenant_core, smart_gate, "Авторизация доступа (авто/номера), события", "HTTPS/Webhooks")
+Rel(client_crm, tenant_crm, "Синхронизация клиентских данных (при согласии)", "ETL/ESB")
+Rel(tenant_core, accounting, "Начисления/операции", "Internal API")
+
+' Витрины связаны логически, но в контексте – лишь внешние точки входа
+Rel(owner, utilities_storefront, "Просмотр услуг ЖКУ", "Web")
+Rel(client, sales_storefront, "Просмотр объектов/предложений", "Web")
+
+
+Rel(sales_storefront, client_tour, "Web")
+Rel(sales_storefront, client_mart, "Web")
+Rel(sales_storefront, client_crm, "Web")
+Rel(sales_storefront, client_estate, "Web")
+
+@enduml
